@@ -28,12 +28,29 @@ class OpenImageAsGrid(bpy.types.Operator):
 		return [pixels[4*(int(round(x)+int(round(y))*offset))+i] for i in range(0,4)]
 	
 	@staticmethod
+	def find_ylims(pixels,offset,x,yrange):
+		ylims = [max(yrange),min(yrange)]
+		roi = False
+		for y in yrange:
+			if(OpenImageAsGrid.get_rgba(pixels,offset,x,y)[3]>0):
+				if(not roi):
+					roi = True
+				if(roi):
+					ylims[0] = min(ylims[0],y)
+					ylims[1] = max(ylims[1],y)
+			else:
+				if (roi):
+					break
+		if(roi):
+			return ylims
+		else:
+			return None
+	@staticmethod
 	def add_vertices_edges_faces_to_mesh(mesh,image, suggestedNofSteps=None):
 		"""Not sure how the layout of the image is in blender..."""
 		suggestedNofSteps = max(image.size[0],image.size[1]) if suggestedNofSteps is None else suggestedNofSteps
 		print(inspect.getframeinfo(inspect.currentframe()))
 		bm = bmesh.new()
-		vertices=dict()
 		stepsize = [max(1,image.size[k]//suggestedNofSteps) for k in range(0,len(image.size))]
 		def S(x):
 			return [1.0/float(image.size[k])*x[k] for k in [0,1]]+[0]
@@ -41,26 +58,22 @@ class OpenImageAsGrid(bpy.types.Operator):
 		offset = image.size[0]
 		print("Uses stepsize:{0}".format(stepsize))
 		for x in range(0,image.size[0],stepsize[0]):
-			for y in range(0,image.size[1],stepsize[1]):
-				if OpenImageAsGrid.get_rgba(pixels,offset,x,y)[3]>0:
-					if (x,y) not in vertices:
-						vertices[(x,y)] = bm.verts.new(S([x,y,0]))
-					if (x+stepsize[0],y) not in vertices:
-						vertices[(x+stepsize[0],y)] = bm.verts.new(S([x+stepsize[0],y,0]))
-					if (x+stepsize[0],y+stepsize[1]) not in vertices:
-						vertices[(x+stepsize[0],y+stepsize[1])] = bm.verts.new(S([x+stepsize[0],y+stepsize[1],0]))
-					if (x,y+stepsize[1]) not in vertices:
-						vertices[(x,y+stepsize[1])] = bm.verts.new(S([x,y+stepsize[1],0]))
-		print(inspect.getframeinfo(inspect.currentframe()))
-		for x in range(0,image.size[0],stepsize[0]):
-			for y in range(0,image.size[1],stepsize[1]):
-				if all(((x+dx,y+dy) in vertices.keys() for dx in [0,stepsize[0]] for dy in [0,stepsize[1]])):
-					local_vlist = [vertices[(x+d[0],y+d[1])] for d in [[0,0],[0,stepsize[1]],[stepsize[0],stepsize[1]],[stepsize[0],0]]]
+			yrange = range(0,image.size[1],stepsize[1])
+			while(len(yrange)>0):
+				xlims = [x,x+stepsize[0]]
+				ylims = OpenImageAsGrid.find_ylims(pixels,offset,x,yrange)
+				if(ylims):
+					local_vlist = list()
+					for (xt,yt) in [(xlims[0],ylims[0]),(xlims[0],ylims[1]),(xlims[1],ylims[1]),(xlims[0],ylims[1])]:
+						local_vlist.append(bm.verts.new(S([xt,yt,0])))
 					bm.faces.new( local_vlist )
 					for k in range(0,len(local_vlist)):
 						local_vpair = (local_vlist[(k)%(len(local_vlist))],local_vlist[(k+1)%(len(local_vlist))])
 						if bm.edges.get(local_vpair) is None:
 							bm.edges.new(local_vpair)
+					yrange = range(ylims[1]+stepsize[1],image.size[1],stepsize[1])
+				else:
+					break
 		print(inspect.getframeinfo(inspect.currentframe()))
 
 		# uv_layer = bm.loops.layers.uv.verify()
