@@ -1,0 +1,15 @@
+import bpy
+
+for poly in bpy.context.object.data.polygons:
+	print("Polygon index: %d, length: %d" % (poly.index, poly.loop_total))
+
+	# range is used here to show how the polygons reference loops,
+	# for convenience 'poly.loop_indices' can be used instead.
+	for loop_index in range(poly.loop_start, poly.loop_start + poly.loop_total):
+		print("\t<polygon loop index = {loop_index}>".format(loop_index=loop_index))
+		vertex_index = bpy.context.object.data.loops[loop_index].vertex_index
+		print("\t\tvertices[{vertex_index}] coordinates={vertex}".format(vertex_index=vertex_index,vertex=bpy.context.object.data.vertices[vertex_index].co))
+		edge_index = bpy.context.object.data.loops[loop_index].edge_index
+		for vertex_index in bpy.context.object.data.edges[edge_index].vertices:
+			print("\t\t\tedge {edge_index}, vertices[{vertex_index}] coordinates={vertex}".format(edge_index=edge_index,vertex_index=vertex_index,vertex=bpy.context.object.data.vertices[vertex_index].co))
+		print("\t\tUV: {uv}".format(uv=bpy.context.object.data.uv_layers.active.data[loop_index].uv))
